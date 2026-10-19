@@ -1,0 +1,39 @@
+# Data — never committed: raw records are governed by their own agreements
+*.csv
+!MANIFEST.csv
+*.tsv
+*.xlsx
+*.parquet
+*.feather
+*.pkl
+*.npy
+*.npz
+*.rds
+*.RData
+*.sqlite
+*.db
+data/
+raw/
+figures/data/
+figures/out/
+
+# Environment and secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+
+# R
+.Rhistory
+.Rproj.user/
+*.Rproj
+
+# OS / temporary
+.DS_Store
+Thumbs.db
+~$*
+*.tmp

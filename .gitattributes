@@ -1,0 +1,3 @@
+# Keep deposited bytes exactly as recorded in MANIFEST.csv (per-file SHA-256).
+# Overrides core.autocrlf. Do not edit without regenerating MANIFEST.csv.
+* -text
