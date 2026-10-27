@@ -103,6 +103,51 @@ COLSUBSET = {
     ("Figure2", "2B"): ["method", "spearman", "sp_lo", "sp_hi"],
 }
 
+def _publish_transform(fname, d):
+    """发布用字段口径（2026-10-27）。冻结 CSV 原样保留作历史记录。
+
+    fig3c_sudo_decomposition.csv 的列名仍是旧分母 202/138，且两个差值字段存的是
+    「早减晚」；正文用的是「晚减早」（+0.075 / -0.083）。此处只改**发布工作簿**，
+    不动 figures/data 下的冻结文件。
+    """
+    if fname == "fig3c_sudo_decomposition.csv":
+        d = d.rename(columns={"pooled_202task": "pooled_186task",
+                              "pooled_138task": "pooled_134task",
+                              "macro_138task": "macro_134task"})
+        if "task_subset_effect" in d.columns:
+            d["task_subset_effect"] = -d["task_subset_effect"]
+            d = d.rename(columns={"task_subset_effect":
+                                  "task_subset_effect (134 minus 186)"})
+        if "aggregation_effect" in d.columns:
+            d["aggregation_effect"] = -d["aggregation_effect"]
+            d = d.rename(columns={"aggregation_effect":
+                                  "aggregation_effect (macro minus pooled)"})
+    elif fname.startswith("figS_orientation"):
+        d = d.rename(columns={"pooled_raw_all202": "pooled_raw_all186"})
+    return d
+
+
+def _full_precision_table():
+    """全精度 task-level 表：由 p6b / p6c / p6d 三份冻结输出合并而成。"""
+    src = os.path.join(ROOT, "分析结果")
+    oc = pd.read_csv(os.path.join(src, "p6d_outcome.csv"))
+    l3 = pd.read_csv(os.path.join(src, "p6c_L3_blinded.csv"))
+    b = pd.read_csv(os.path.join(src, "p6b_label_free_signals_blinded.csv"))
+    cols = ["task_id", "organism", "drug", "source_site", "target_site",
+            "n_target", "auroc_source_internal", "auroc_target", "d_auroc", "harmful", "stable",
+            "domain_auc", "mmd", "psi_mean", "psi_max", "js_mean", "js_max",
+            "pred_mean_shift", "entropy_mean_shift", "entropy_js", "conf_dist_js",
+            "pred_pos_prev_shift", "SUDO_AURCC",
+            "AUROC_DR", "AUROC_IOW", "AUROC_OM"]
+    m = oc.merge(b[["task_id", "domain_auc", "mmd", "psi_mean", "psi_max", "js_mean",
+                    "js_max", "pred_mean_shift", "entropy_mean_shift", "entropy_js",
+                    "conf_dist_js", "pred_pos_prev_shift"]], on="task_id", how="left") \
+          .merge(l3[["task_id", "SUDO_AURCC", "AUROC_DR", "AUROC_IOW", "AUROC_OM"]],
+                 on="task_id", how="left")
+    assert len(m) == 186, len(m)
+    assert m[cols].isna().sum().sum() == 0
+    return m[cols]
+
 def write_single_book(items):
     """★ 期刊格式（Nature Communications «Data and Code»）：
        **一个 Excel 工作簿**，每个图/表一个 sheet；sheet 名对应面板（示例用 "Figure 1a"）。
@@ -120,6 +165,7 @@ def write_single_book(items):
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         for fig, panel, f, tag in items:
             d = pd.read_csv(os.path.join(FIG, f))
+            d = _publish_transform(f, d)
             _sel = COLSUBSET.get((fig, panel))
             if _sel:
                 d = d[_sel]          # 面板子集（如 Figure 2B）
@@ -139,8 +185,15 @@ def write_single_book(items):
                              rows=len(d), cols=len(d.columns),
                              columns="; ".join(map(str, d.columns))))
             n += 1
+        fp = _full_precision_table()
+        fp.to_excel(xw, sheet_name="Table S1 (full precision)", index=False)
+        ROWS.append(dict(figure="TableS1", panel="full precision",
+                         sheet="Table S1 (full precision)", source_file="p6b+p6c+p6d",
+                         rows=len(fp), cols=len(fp.columns),
+                         columns="; ".join(map(str, fp.columns))))
+        n += 1
     n_sheets = len(pd.ExcelFile(path).sheet_names)
-    if n_sheets != len(items):
+    if n_sheets != len(items) + 1:
         raise RuntimeError("SourceData.xlsx：写入 %d 个 item，却只有 %d 个 sheet" % (len(items), n_sheets))
     return path, n
 
@@ -161,6 +214,7 @@ def write_book(key, items):
     with pd.ExcelWriter(path, engine="openpyxl") as xw:
         for fig, panel, f, sheetname in items:
             d = pd.read_csv(os.path.join(FIG, f))
+            d = _publish_transform(f, d)
             _sel = COLSUBSET.get((fig, panel))
             if _sel:
                 d = d[_sel]          # 面板子集（如 Figure 2B）
